@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora RMI Web</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Incluimos Bootstrap para un diseño responsive -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Fuente de Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="calculator-container fade-in">
+                    <h1 class="text-center mb-4">✨ Calculadora RMI ✨</h1>
+                    
+                    <!-- Panel de estado de conexión -->
+                    <div id="connection-status" class="alert alert-info mb-4">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm me-2" role="status">
+                                <span class="visually-hidden">Comprobando...</span>
+                            </div>
+                            <span>Comprobando conexión con el servidor...</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Formulario de la calculadora -->
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <form id="calculator-form">
+                                <div class="mb-3">
+                                    <label for="num1" class="form-label">Primer número:</label>
+                                    <input type="number" class="form-control" id="num1" required step="any" placeholder="Ingresa un número">
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="num2" class="form-label">Segundo número:</label>
+                                    <input type="number" class="form-control" id="num2" required step="any" placeholder="Ingresa un número">
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Operación:</label>
+                                    <div class="d-flex justify-content-between flex-wrap">
+                                        <button type="button" class="btn btn-primary operation-btn mb-2" data-operation="suma">
+                                            <i class="me-1">+</i> Suma
+                                        </button>
+                                        <button type="button" class="btn btn-primary operation-btn mb-2" data-operation="resta">
+                                            <i class="me-1">-</i> Resta
+                                        </button>
+                                        <button type="button" class="btn btn-primary operation-btn mb-2" data-operation="multiplicacion">
+                                            <i class="me-1">×</i> Multiplicación
+                                        </button>
+                                        <button type="button" class="btn btn-primary operation-btn mb-2" data-operation="division">
+                                            <i class="me-1">÷</i> División
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="result-container mt-4">
+                                    <h3 class="text-center mb-1">Resultado</h3>
+                                    <div id="result">-</div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <!-- Historial de operaciones -->
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h3 class="m-0 fs-5">Historial de operaciones</h3>
+                            <button id="refresh-history" class="btn btn-sm btn-outline-secondary">
+                                <span class="d-flex align-items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-clockwise me-1" viewBox="0 0 16 16">
+                                        <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                                        <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                                    </svg>
+                                    Actualizar
+                                </span>
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="history-container">
+                                <p class="text-muted">No hay operaciones en el historial.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Referencias a elementos del DOM
+            const connectionStatus = document.getElementById('connection-status');
+            const operationBtns = document.querySelectorAll('.operation-btn');
+            const resultDisplay = document.getElementById('result');
+            const resultContainer = document.querySelector('.result-container');
+            const num1Input = document.getElementById('num1');
+            const num2Input = document.getElementById('num2');
+            const refreshHistoryBtn = document.getElementById('refresh-history');
+            const historyContainer = document.getElementById('history-container');
+            
+            // Verificar la conexión con el servidor
+            checkServerConnection();
+            
+            // Configurar los botones de operación
+            operationBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const operation = this.getAttribute('data-operation');
+                    performCalculation(operation);
+                });
+            });
+            
+            // Configurar el botón de actualizar historial
+            refreshHistoryBtn.addEventListener('click', fetchHistory);
+            
+            // Verificar conexión con el servidor
+            function checkServerConnection() {
+                fetch('/api/historial')
+                    .then(response => {
+                        if (response.ok) {
+                            connectionStatus.innerHTML = `
+                                <div class="d-flex align-items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-circle-fill me-2" viewBox="0 0 16 16">
+                                        <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+                                    </svg>
+                                    <span>Conectado al servidor</span>
+                                </div>`;
+                            connectionStatus.classList.remove('alert-info', 'alert-danger');
+                            connectionStatus.classList.add('alert-success');
+                            
+                            // Cargar el historial al conectar
+                            fetchHistory();
+                        } else {
+                            throw new Error('Error al conectar con el servidor');
+                        }
+                    })
+                    .catch(error => {
+                        connectionStatus.innerHTML = `
+                            <div class="d-flex align-items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-exclamation-triangle-fill me-2" viewBox="0 0 16 16">
+                                    <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                                </svg>
+                                <span>Error de conexión: ${error.message}</span>
+                            </div>`;
+                        connectionStatus.classList.remove('alert-info', 'alert-success');
+                        connectionStatus.classList.add('alert-danger');
+                    });
+            }
+            
+            // Realizar cálculo
+            function performCalculation(operation) {
+                // Validar que se ingresaron números
+                const num1 = parseFloat(num1Input.value);
+                const num2 = parseFloat(num2Input.value);
+                
+                if (isNaN(num1) || isNaN(num2)) {
+                    alert('Por favor ingrese números válidos');
+                    return;
+                }
+                
+                // Preparar datos para enviar al servidor
+                const data = {
+                    operacion: operation,
+                    num1: num1,
+                    num2: num2
+                };
+                
+                // Mostrar un indicador de carga
+                resultDisplay.innerHTML = `
+                    <div class="d-flex justify-content-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Calculando...</span>
+                        </div>
+                    </div>`;
+                
+                // Enviar la solicitud al servidor
+                fetch('/api/calcular', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        resultDisplay.textContent = 'Error: ' + data.error;
+                        resultContainer.classList.remove('result-active');
+                    } else {
+                        // Mostrar el resultado con una animación
+                        resultContainer.classList.remove('result-active');
+                        void resultContainer.offsetWidth; // Truco para reiniciar la animación
+                        resultContainer.classList.add('result-active');
+                        
+                        // Formatear el resultado si es numérico
+                        if (typeof data.resultado === 'number') {
+                            // Si el número es entero, mostrar sin decimales
+                            if (Number.isInteger(data.resultado)) {
+                                resultDisplay.textContent = data.resultado;
+                            } else {
+                                // Si tiene muchos decimales, limitar a 4
+                                resultDisplay.textContent = Number(data.resultado.toFixed(4));
+                            }
+                        } else {
+                            resultDisplay.textContent = data.resultado;
+                        }
+                        
+                        // Actualizar el historial
+                        fetchHistory();
+                    }
+                })
+                .catch(error => {
+                    resultDisplay.textContent = 'Error al realizar la operación';
+                    console.error('Error:', error);
+                    resultContainer.classList.remove('result-active');
+                });
+            }
+            
+            // Obtener historial
+            function fetchHistory() {
+                // Mostrar un indicador de carga
+                historyContainer.innerHTML = `
+                    <div class="d-flex justify-content-center my-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando historial...</span>
+                        </div>
+                    </div>`;
+                
+                fetch('/api/historial')
+                    .then(response => response.json())
+                    .then(data => {
+                        // Limpiar el contenedor de historial
+                        historyContainer.innerHTML = '';
+                        
+                        if (data.length === 0) {
+                            historyContainer.innerHTML = '<p class="text-muted">No hay operaciones en el historial.</p>';
+                            return;
+                        }
+                        
+                        // Crear tabla para el historial
+                        const table = document.createElement('table');
+                        table.className = 'table table-striped';
+                        
+                        // Encabezado de la tabla
+                        const thead = document.createElement('thead');
+                        thead.innerHTML = `
+                            <tr>
+                                <th>Operación</th>
+                                <th>Expresión</th>
+                                <th>Resultado</th>
+                                <th>Fecha</th>
+                            </tr>
+                        `;
+                        table.appendChild(thead);
+                        
+                        // Cuerpo de la tabla
+                        const tbody = document.createElement('tbody');
+                        
+                        // Invertir array para mostrar las más recientes primero
+                        data.reverse().forEach(item => {
+                            const tr = document.createElement('tr');
+                            
+                            // Formatear la operación
+                            let operacionTexto;
+                            let simbolo;
+                            switch (item.operacion) {
+                                case 'suma': 
+                                    operacionTexto = 'Suma'; 
+                                    simbolo = '+';
+                                    break;
+                                case 'resta': 
+                                    operacionTexto = 'Resta'; 
+                                    simbolo = '-';
+                                    break;
+                                case 'multiplicacion': 
+                                    operacionTexto = 'Multiplicación'; 
+                                    simbolo = '×';
+                                    break;
+                                case 'division': 
+                                    operacionTexto = 'División'; 
+                                    simbolo = '÷';
+                                    break;
+                                default: 
+                                    operacionTexto = item.operacion;
+                                    simbolo = '?';
+                            }
+                            
+                            // Formatear la expresión
+                            const expresion = `${item.num1} ${simbolo} ${item.num2}`;
+                            
+                            // Formatear el resultado
+                            let resultado;
+                            if (typeof item.resultado === 'number') {
+                                if (Number.isInteger(item.resultado)) {
+                                    resultado = item.resultado;
+                                } else {
+                                    resultado = Number(item.resultado.toFixed(4));
+                                }
+                            } else {
+                                resultado = item.resultado;
+                            }
+                            
+                            tr.innerHTML = `
+                                <td>${operacionTexto}</td>
+                                <td>${expresion}</td>
+                                <td>${resultado}</td>
+                                <td>${item.fecha}</td>
+                            `;
+                            
+                            tbody.appendChild(tr);
+                        });
+                        
+                        table.appendChild(tbody);
+                        historyContainer.appendChild(table);
+                    })
+                    .catch(error => {
+                        historyContainer.innerHTML = '<p class="text-danger">Error al cargar el historial</p>';
+                        console.error('Error:', error);
+                    });
+            }
+        });
+    </script>
+</body>
+</html>
